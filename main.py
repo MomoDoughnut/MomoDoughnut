@@ -1,3 +1,5 @@
+from typing import Tuple
+
 from util import routines, tools, utils
 from util.agent import Vector, VirxERLU, run_bot
 
@@ -8,13 +10,19 @@ class Bot(VirxERLU):
     # VirxERLU on VirxEC Showcase -> https://virxerlu.virxcase.dev/
     # Questions? Want to be notified about VirxERLU updates? Join my Discord -> https://discord.gg/5ARzYRD2Na
     # Wiki -> https://github.com/VirxEC/VirxERLU/wiki
-    def init(self):
-        # NOTE This method is ran only once, and it's when the bot starts up
+
+    def __init__(self, name, team, index):
+        super().__init__(name, team, index)
 
         # This is a shot between the opponent's goal posts
         # NOTE When creating these, it must be a tuple of (left_target, right_target)
-        self.foe_goal_shot = (self.foe_goal.left_post, self.foe_goal.right_post)
-        # NOTE If you want to shoot the ball anywhere BUT between to targets, then make a tuple like (right_target, left_target) - I call this an anti-target
+        self.foe_goal_shot: Tuple[Vector, Vector] = (self.foe_goal.left_post, self.foe_goal.right_post)
+        # NOTE If you want to shoot the ball anywhere BUT between to targets, then make a tuple like (right_target,
+        # left_target) - I call this an anti-target
+
+    def init(self):
+        # NOTE This method is ran only once, and it's when the bot starts up.
+        pass
 
     def run(self):
         # NOTE This method is ran every tick
@@ -45,21 +53,27 @@ class Bot(VirxERLU):
             if not self.is_clear():
                 return
 
-        # if the stack is clear, then run the following - otherwise, if the stack isn't empty, then look for a shot every 4th tick while the other routine is running
+        # if the stack is clear, then run the following - otherwise, if the stack isn't empty, then look for a shot
+        # every 4th tick while the other routine is running
         if self.is_clear() or self.odd_tick == 0:
             shot = None
 
-            # TODO we might miss the net, even when using a target - make a pair of targets that are small than the goal so we have a better chance of scoring!
-            # If the ball is on the enemy's side of the field, or slightly on our side
+            # TODO we might miss the net, even when using a target - make a pair of targets that are small than the
+            #  goal so we have a better chance of scoring! If the ball is on the enemy's side of the field,
+            #  or slightly on our side
             if self.ball.location.y * utils.side(self.team) < 640:
-                # Find a shot, on target - double_jump, jump_shot, and ground_shot are automatically disabled if we're airborne
+                # Find a shot, on target - double_jump, jump_shot, and ground_shot are automatically disabled if
+                # we're airborne
                 shot = tools.find_shot(self, self.foe_goal_shot)
 
-            # TODO Using an anti-target here could be cool - do to this, pass in a target tuple that's (right_target, left_target) (instead of (left, right)) into tools.find_shot (NOT tools.find_any_shot)
-            # TODO When possible, we might want to take a little bit more time to shot the ball anywhere in the opponent's end - this target should probably be REALLY LONG AND HIGH!
-            # If we're behind the ball and we couldn't find a shot on target
+            # TODO Using an anti-target here could be cool - do to this, pass in a target tuple that's (right_target,
+            #  left_target) (instead of (left, right)) into tools.find_shot (NOT tools.find_any_shot) TODO When
+            #   possible, we might want to take a little bit more time to shot the ball anywhere in the opponent's
+            #   end - this target should probably be REALLY LONG AND HIGH! If we're behind the ball and we couldn't
+            #   find a shot on target
             if shot is None and self.ball.location.y * utils.side(self.team) < self.me.location.y * utils.side(self.team):
-                # Find a shot, but without a target - double_jump, jump_shot, and ground_shot are automatically disabled if we're airborne
+                # Find a shot, but without a target - double_jump, jump_shot, and ground_shot are automatically
+                # disabled if we're airborne
                 shot = tools.find_any_shot(self)
 
             # If we found a shot
@@ -91,7 +105,8 @@ class Bot(VirxERLU):
 
         # If the stack if clear and we're in the air
         if self.is_clear() and self.me.airborne:
-            # Recover - This routine supports floor, wall, and ceiling recoveries, as well as recovering towards a target
+            # Recover - This routine supports floor, wall, and ceiling recoveries, as well as recovering towards a
+            # target
             self.push(routines.recovery())
 
             # we've made our decision and we don't want to run anything else
@@ -109,9 +124,9 @@ class Bot(VirxERLU):
             if not self.is_clear():
                 return
 
-        # TODO this setup is far from ideal - a custom shadow/retreat routine is probably best for the bot...
-        # Make sure to put custom routines in a separate file from VirxERLU routines, so you can easily update VirxERLU to newer versions.
-        # If the stack is still clear
+        # TODO this setup is far from ideal - a custom shadow/retreat routine is probably best for the bot... Make
+        #  sure to put custom routines in a separate file from VirxERLU routines, so you can easily update VirxERLU
+        #  to newer versions. If the stack is still clear
         if self.is_clear():
             # If ball is in our half
             if self.ball.location.y * utils.side(self.team) > 640:
@@ -128,7 +143,8 @@ class Bot(VirxERLU):
                     # Shadow
                     self.push(shadow_routine)
 
-        # If we get here, then we are doing our kickoff, nor can we shoot, nor can we retreat or shadow - so let's just wait!
+        # If we get here, then we are doing our kickoff, nor can we shoot, nor can we retreat or shadow - so let's
+        # just wait!
 
     def goto_nearest_boost(self):
         # Get a list of all of the large, active boosts
@@ -164,7 +180,8 @@ class Bot(VirxERLU):
     def handle_quick_chat(self, index, team, quick_chat):
         # NOTE This is for handling any incoming quick chats
 
-        # See https://github.com/RLBot/RLBot/blob/master/src/main/flatbuffers/rlbot.fbs#L376 for a list of all quick chats
+        # See https://github.com/RLBot/RLBot/blob/master/src/main/flatbuffers/rlbot.fbs#L376 for a list of all quick
+        # chats
         if self.team is team:
             self.print(quick_chat)
 

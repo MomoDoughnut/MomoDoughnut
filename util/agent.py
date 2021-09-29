@@ -46,6 +46,9 @@ class VirxERLU(StandaloneBot):
         self.debug_ball_path_precision = 10
         self.disable_driving = False
 
+        self.friend_goal = goal_object(self.team)
+        self.foe_goal = goal_object(not self.team)
+
     def initialize_agent(self):
         self.startup_time = time_ns()
 
@@ -120,9 +123,6 @@ class VirxERLU(StandaloneBot):
         self.game = game_object()
 
         self.boosts = ()
-
-        self.friend_goal = goal_object(self.team)
-        self.foe_goal = goal_object(not self.team)
 
         self.stack = []
         self.time = 0
