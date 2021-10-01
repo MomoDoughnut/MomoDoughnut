@@ -1,6 +1,7 @@
 from enum import Enum
+from typing import Optional
 
-from util.routines import Aerial, double_jump, ground_shot, jump_shot, virxrlcu
+from util.routines import Aerial, DoubleJump, GroundShot, JumpShot, virxrlcu, Routine
 from util.utils import Vector, cap, math, side
 
 class ShotType(Enum):
@@ -11,45 +12,45 @@ class ShotType(Enum):
 
 
 SHOT_SWITCH = {
-    ShotType.GROUND: ground_shot,
-    ShotType.JUMP: jump_shot,
-    ShotType.DOUBLE_JUMP: double_jump
+    ShotType.GROUND: GroundShot,
+    ShotType.JUMP: JumpShot,
+    ShotType.DOUBLE_JUMP: DoubleJump
 }
 
 
-def find_ground_shot(agent, target, cap_=6):
+def find_ground_shot(agent, target, cap_=6) -> Optional[Routine]:
     return find_shot(agent, target, cap_, can_aerial=False, can_double_jump=False, can_jump=False)
 
 
-def find_any_ground_shot(agent, cap_=6):
+def find_any_ground_shot(agent, cap_=6) -> Optional[Routine]:
     return find_any_shot(agent, cap_, can_aerial=False, can_double_jump=False, can_jump=False)
 
 
-def find_jump_shot(agent, target, cap_=6):
+def find_jump_shot(agent, target, cap_=6) -> Optional[Routine]:
     return find_shot(agent, target, cap_, can_aerial=False, can_double_jump=False, can_ground=False)
 
 
-def find_any_jump_shot(agent, cap_=6):
+def find_any_jump_shot(agent, cap_=6) -> Optional[Routine]:
     return find_any_shot(agent, cap_, can_aerial=False, can_double_jump=False, can_ground=False)
 
 
-def find_double_jump(agent, target, cap_=6):
+def find_double_jump(agent, target, cap_=6) -> Optional[Routine]:
     return find_shot(agent, target, cap_, can_aerial=False, can_jump=False, can_ground=False)
 
 
-def find_any_double_jump(agent, cap_=6):
+def find_any_double_jump(agent, cap_=6) -> Optional[Routine]:
     return find_any_shot(agent, cap_, can_aerial=False, can_jump=False, can_ground=False)
 
 
-def find_aerial(agent, target, cap_=6):
+def find_aerial(agent, target, cap_=6) -> Optional[Routine]:
     return find_shot(agent, target, cap_, can_double_jump=False, can_jump=False, can_ground=False)
 
 
-def find_any_aerial(agent, cap_=6):
+def find_any_aerial(agent, cap_=6) -> Optional[Routine]:
     return find_any_shot(agent, cap_, can_double_jump=False, can_jump=False, can_ground=False)
 
 
-def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True):
+def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True) -> Optional[Routine]:
     if not can_aerial and not can_double_jump and not can_jump and not can_ground:
         agent.print("WARNING: All shots were disabled when find_shot was ran")
         return
@@ -116,7 +117,7 @@ def find_shot(agent, target, cap_=6, can_aerial=True, can_double_jump=True, can_
             return SHOT_SWITCH[shot_type](intercept_time, (Vector(*shot['targets'][0]), Vector(*shot['targets'][1])))
 
 
-def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True):
+def find_any_shot(agent, cap_=6, can_aerial=True, can_double_jump=True, can_jump=True, can_ground=True) -> Optional[Routine]:
     if not can_aerial and not can_double_jump and not can_jump and not can_ground:
         agent.print("WARNING: All shots were disabled when find_any_shot was ran")
         return

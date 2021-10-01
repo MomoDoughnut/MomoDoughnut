@@ -25,6 +25,11 @@ if not TOURNAMENT_MODE and EXTRA_DEBUGGING:
     from gui import Gui
 
 
+class Routine:
+    def run(self, agent: VirxERLU):
+        pass
+
+
 class VirxERLU(StandaloneBot):
     # Massive thanks to ddthj/GoslingAgent (GitHub repo) for the basis of VirxERLU
     # VirxERLU on VirxEC Showcase -> https://virxerlu.virxcase.dev/
@@ -32,6 +37,8 @@ class VirxERLU(StandaloneBot):
     def __init__(self, name, team, index):
         super().__init__(name, team, index)
         self.tournament = TOURNAMENT_MODE
+        self.controller: SimpleControllerState = SimpleControllerState()
+        self.stack: List[Routine] = []
         self.extra_debugging = EXTRA_DEBUGGING
         self.true_name = re.split(r' \(\d+\)$', self.name)[0]
 
@@ -46,8 +53,8 @@ class VirxERLU(StandaloneBot):
         self.debug_ball_path_precision = 10
         self.disable_driving = False
 
-        self.friend_goal = goal_object(self.team)
-        self.foe_goal = goal_object(not self.team)
+        self.friend_goal = Goal(self.team)
+        self.foe_goal = Goal(not self.team)
 
     def initialize_agent(self):
         self.startup_time = time_ns()
@@ -119,17 +126,14 @@ class VirxERLU(StandaloneBot):
         self.me = car_object(self.index)
         self.ball_to_goal = -1
 
-        self.ball = ball_object()
-        self.game = game_object()
+        self.ball = Ball()
+        self.game = GameInfo()
 
         self.boosts = ()
 
-        self.stack = []
         self.time = 0
 
         self.ready = False
-
-        self.controller = SimpleControllerState()
 
         self.kickoff_flag = False
         self.kickoff_done = True
@@ -140,7 +144,7 @@ class VirxERLU(StandaloneBot):
         # self.sent_tmcp_packet_times = {}
 
         self.future_ball_location_slice = 180
-        self.balL_prediction_struct = None
+        self.ball_prediction_struct = None
 
     def retire(self):
         # Stop the currently running threads
@@ -154,7 +158,7 @@ class VirxERLU(StandaloneBot):
 
     def get_ready(self, packet):
         field_info = self.get_field_info()
-        self.boosts = tuple(boost_object(i, field_info.boost_pads[i].location, field_info.boost_pads[i].is_full_boost) for i in range(field_info.num_boosts))
+        self.boosts = tuple(BoostPickup(i, field_info.boost_pads[i].location, field_info.boost_pads[i].is_full_boost) for i in range(field_info.num_boosts))
         if len(self.boosts) != 34:
             print(f"There are {len(self.boosts)} boost pads! @Tarehart REEEEE!")
             for i, boost in enumerate(self.boosts):
@@ -183,7 +187,7 @@ class VirxERLU(StandaloneBot):
         except Exception:
             print(f"{self.name}: I appear to have been forcefully pushed into a match! How rude.")
 
-    def push(self, routine):
+    def push_task(self, routine):
         self.stack.append(routine)
 
     def pop(self):
@@ -230,12 +234,20 @@ class VirxERLU(StandaloneBot):
     def dbg_2d(self, item):
         self.debug[1].append(str(item))
 
-    def clear(self):
+    def clear_task(self):
         self.shooting = False
         self.stack = []
 
-    def is_clear(self):
+    def needs_task(self):
         return len(self.stack) < 1
+
+    def has_task(self) -> bool:
+        return len(self.stack) > 0
+
+    def get_active_task(self):
+        if self.has_task():
+            return self.stack[-1]
+        return None
 
     def preprocess(self, packet: GameTickPacket):
         if packet.num_cars != len(self.friends)+len(self.foes)+1 or self.odd_tick == 0:
@@ -259,7 +271,7 @@ class VirxERLU(StandaloneBot):
         # When a new kickoff begins we empty the stack
         if not self.kickoff_flag and self.game.round_active and self.game.kickoff:
             self.kickoff_done = False
-            self.clear()
+            self.clear_task()
 
         # Tells us when to go for kickoff
         self.kickoff_flag = self.game.round_active and self.game.kickoff
@@ -290,7 +302,7 @@ class VirxERLU(StandaloneBot):
                     print_exc()
 
     def is_shooting(self):
-        stack_routine_name = '' if self.is_clear() else self.stack[0].__class__.__name__
+        stack_routine_name = '' if self.needs_task() else self.stack[0].__class__.__name__
         return stack_routine_name in {'Aerial', 'jump_shot', 'double_jump', 'ground_shot', 'short_shot'}
 
     def get_output(self, packet):
@@ -305,8 +317,8 @@ class VirxERLU(StandaloneBot):
             self.preprocess(packet)
 
             if self.me.demolished:
-                if not self.is_clear():
-                    self.clear()
+                if self.has_task():
+                    self.clear_task()
             elif self.game.round_active:
                 self.shooting = self.is_shooting()
 
@@ -317,34 +329,35 @@ class VirxERLU(StandaloneBot):
                     print(f"ERROR in {self.name}; see '{t_file}'")
                     print_exc(file=open(t_file, "a"))
 
-                try:
-                    tmcp_packet = self.create_tmcp_packet()
+                if self.matchcomms_root is not None:
+                    try:
+                        tmcp_packet = self.create_tmcp_packet()
 
-                    # if we haven't sent a packet, OR
-                    # the last packet we sent isn't out current packet AND either the action types are different OR either the time difference is greater than 0.1 or target is different
-                    if self.last_sent_tmcp_packet is None or self.tmcp_packet_is_different(tmcp_packet):
-                        self.matchcomms.outgoing_broadcast.put_nowait(tmcp_packet)
-                        self.last_sent_tmcp_packet = tmcp_packet
+                        # if we haven't sent a packet, OR
+                        # the last packet we sent isn't out current packet AND either the action types are different OR either the time difference is greater than 0.1 or target is different
+                        if self.last_sent_tmcp_packet is None or self.tmcp_packet_is_different(tmcp_packet):
+                            self.matchcomms.outgoing_broadcast.put_nowait(tmcp_packet)
+                            self.last_sent_tmcp_packet = tmcp_packet
 
-                        # t = math.floor(self.time)
-                        # if self.sent_tmcp_packet_times.get(t) is None:
-                        #     self.sent_tmcp_packet_times[t] = 1
-                        # else:
-                        #     self.sent_tmcp_packet_times[t] += 1
-                except Exception:
-                    t_file = os.path.join(self.traceback_file[0], self.name+"-TMCP"+self.traceback_file[1])
-                    print(f"ERROR in {self.name} with sending TMCP packet; see '{t_file}'")
-                    print_exc(file=open(t_file, "a"))
+                            # t = math.floor(self.time)
+                            # if self.sent_tmcp_packet_times.get(t) is None:
+                            #     self.sent_tmcp_packet_times[t] = 1
+                            # else:
+                            #     self.sent_tmcp_packet_times[t] += 1
+                    except Exception:
+                        t_file = os.path.join(self.traceback_file[0], self.name+"-TMCP"+self.traceback_file[1])
+                        print(f"ERROR in {self.name} with sending TMCP packet; see '{t_file}'")
+                        print_exc(file=open(t_file, "a"))
 
                 # run the routine on the end of the stack
-                if not self.is_clear():
-                    try:
-                        r_name = self.stack[-1].__class__.__name__
-                        self.stack[-1].run(self)
-                    except Exception:
-                        t_file = os.path.join(self.traceback_file[0], r_name+self.traceback_file[1])
-                        print(f"ERROR in {self.name}'s {r_name} routine; see '{t_file}'")
-                        print_exc(file=open(t_file, "a"))
+                # if not self.is_clear():
+                #     try:
+                #         r_name = self.stack[-1].__class__.__name__
+                #         self.stack[-1].run(self)
+                #     except Exception:
+                #         t_file = os.path.join(self.traceback_file[0], r_name+self.traceback_file[1])
+                #         print(f"ERROR in {self.name}'s {r_name} routine; see '{t_file}'")
+                #         print_exc(file=open(t_file, "a"))
 
                 if self.debugging:
                     if self.debug_3d_bool:
@@ -389,7 +402,7 @@ class VirxERLU(StandaloneBot):
                         if self.delta_time != 0:
                             self.debug[1].insert(0, f"TPS: {round(1 / self.delta_time)}")
 
-                        if not self.is_clear() and self.stack[0].__class__.__name__ in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump'}:
+                        if not self.needs_task() and self.stack[0].__class__.__name__ in {'Aerial', 'jump_shot', 'ground_shot', 'double_jump'}:
                             self.dbg_2d(round(self.stack[0].intercept_time - self.time, 4))
 
                         self.renderer.draw_string_2d(20, 300, 2, 2, "\n".join(self.debug[1]), self.renderer.team_color(alt_color=True))
@@ -451,7 +464,7 @@ class VirxERLU(StandaloneBot):
 
         # If you're looking to overwrite this, you might want to do a version check
 
-        if self.is_clear():
+        if self.needs_task():
             tmcp_packet["action"] = {
                 "type": "READY",
                 "time": -1
@@ -712,7 +725,7 @@ class last_touch:
         self.car = car_object(touch.player_index, packet)
 
 
-class ball_shape:
+class BallShape:
     def __init__(self):
         self.type = -1
         self.hitbox = None
@@ -729,12 +742,12 @@ class ball_shape:
             self.hitbox = hitbox_cylinder(shape.cylinder.diameter, shape.cylinder.height)
 
 
-class ball_object:
+class Ball:
     def __init__(self):
         self.location = Vector()
         self.velocity = Vector()
         self.last_touch = last_touch()
-        self.shape = ball_shape()
+        self.shape = BallShape()
 
     def get_raw(self):
         return (
@@ -750,7 +763,7 @@ class ball_object:
         self.shape.update(packet)
 
 
-class boost_object:
+class BoostPickup:
     def __init__(self, index, location, large):
         self.index = index
         self.location = Vector.from_vector(location)
@@ -761,7 +774,7 @@ class boost_object:
         self.active = packet.game_boosts[self.index].is_active
 
 
-class goal_object:
+class Goal:
     # This is a simple object that creates/holds goalpost locations for a given team (for soccer on standard maps only)
     def __init__(self, team):
         team = 1 if team == 1 else -1
@@ -771,7 +784,7 @@ class goal_object:
         self.right_post = Vector(-team * 800, team * 5120, 321.3875)
 
 
-class game_object:
+class GameInfo:
     # This object holds information about the current match
     def __init__(self):
         self.time = 0
