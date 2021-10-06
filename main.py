@@ -1,5 +1,19 @@
 from util import routines
-from util.agent import VirxERLU, run_bot
+from util.agent import VirxERLU, run_bot, Routine, Vector
+
+
+class DriveInCircle(Routine):
+    start_time: float = None
+
+    def run(self, agent: VirxERLU):
+        if self.start_time is None:
+            self.start_time = agent.time
+
+        agent.controller.steer = 1
+        agent.controller.throttle = 1
+
+        if agent.time > self.start_time + 5:
+            agent.pop()
 
 
 class Bot(VirxERLU):
@@ -17,9 +31,12 @@ class Bot(VirxERLU):
         # you could do self.clear_task() and then self.push_task(...)
 
         if not self.has_task():
-            if not self.kickoff_done:
-                self.push_task(routines.GenericKickoff())
-            # else...
+            # if not self.kickoff_done:
+            #     self.push_task(routines.GenericKickoff())
+            # else:
+            self.push_task(DriveInCircle())
+            self.push_task(routines.Goto(Vector(2000, 0, 0)))
+            self.push_task(routines.Goto(Vector(0, 0, 0)))
             # TODO: figure out other stuff to do when there's no task
 
         # At this point, we hopefully have a task.
@@ -33,3 +50,27 @@ class Bot(VirxERLU):
 
 if __name__ == "__main__":
     run_bot(Bot)
+
+
+############# Polymorphism Example #############
+# class Pet:
+#     def speak(self):
+#         pass
+#
+# class Dog(Pet):
+#     def speak(self):
+#         print("woof woof")
+#
+# class Cat(Pet):
+#     def speak(self):
+#         print("meow")
+#
+# if __name__ == "__main__":
+#     my_pets: List[Pet] = []
+#     my_pets.append(Dog())
+#     my_pets.append(Dog())
+#     my_pets.append(Dog())
+#     my_pets.append(Cat())
+#
+#     for p in my_pets:
+#         p.speak()

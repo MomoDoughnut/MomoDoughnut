@@ -489,7 +489,7 @@ class Goto(Routine):
     # Optional vector controls where the car should be pointing upon reaching the target
     # Brake brings the car to slow down to 0 when it gets to it's destination
     # Slow is for small targets, and it forces the car to slow down a bit when it gets close to the target
-    def __init__(self, target, vector=None, brake=False, slow=False):
+    def __init__(self, target: Vector, vector: Vector = None, brake=False, slow=False):
         self.target = target
         self.vector = vector
         self.brake = brake
